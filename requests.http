@@ -1,0 +1,85 @@
+### Deposits money into the user's account.
+POST http://localhost:4111/api/v1/accounts/deposit
+Content-Type: application/json
+Accept: */*
+
+{
+  "id": 10,
+  "balance": 10.0
+}
+
+
+{}
+
+
+### Get users
+GET http://localhost:4111/api/v1/admin/users
+Accept: application/json
+Authorization: Basic YWRtaW46YWRtaW4=
+
+
+{}
+
+
+### Get users
+GET http://localhost:4111/api/v1/admin/users
+Accept: application/json
+Authorization: Basic YWRtaW46YWRtaW4=
+
+
+{}
+
+
+### Create user 1
+POST http://localhost:4111/api/v1/admin/users
+Content-Type: application/json
+Accept: application/json
+Authorization: Basic YWRtaW46YWRtaW4=
+
+{
+"username": "",
+"password": "verysTRongPassword33$",
+"role": "USER"
+}
+
+
+{}
+
+
+### Создать аккаунт
+POST http://localhost:4111/api/v1/accounts
+Accept: application/json
+Authorization: Basic bG9naW5fdXNlcjEyMzp2ZXJ5c1RSb25nUGFzc3dvcmQzMyQ=
+
+{}
+
+
+### Добавить деньги на аккаунт
+POST http://localhost:4111/api/v1/accounts/deposit
+Content-Type: application/json
+Accept: application/json
+Authorization: Basic c2FzaGE6c2FzaGE=
+
+
+{}
+
+
+### Create user
+curl --location 'http://localhost:4111/api/v1/admin/users' \
+--header 'Authorization: Basic YWRtaW46YWRtaW4=' \
+--header 'Accept: application/json' \
+--header 'Content-Type: application/json' \
+--header 'Cookie: JSESSIONID=7C06BABBCDEF5106725DDADA625B6F73' \
+--data '{
+"username": "newuserAndre21",
+"password": "verysTRongPassword33$",
+"role": "USER"
+}'
+
+
+{}
+
+
+
+### Get users
+curl -i -H "Authorization: Basic YWRtaW46YWRtaW4=" http://localhost:4111/api/v1/admin/users
