@@ -14,3 +14,4 @@ DEPOSIT_URI='accounts/deposit'
 
 # Customer
 CUSTOMER_URI='customer/profile'
+CUSTOMER_ACCOUNTS_URI='customer/accounts'
