@@ -227,25 +227,43 @@ def transfer_money():
     return _transfer
 
 
+
+@pytest.fixture
+def get_customer_profile():
+    """
+    Fixture factory: получить профиль юзера по auth_header.
+    """
+    def _profile(auth_header: str) -> dict:
+        resp = requests.get(
+            url=STAGE + CUSTOMER_URI,
+            headers={"Authorization": auth_header}
+        )
+        assert_status(resp, 200)
+        return resp.json()
+    return _profile
+
+
+
 @pytest.fixture
 def update_customer_profile(user_auth):
     """
     Fixture:
-    - возвращает функцию для обновления имени профиля.
-    - Позволяет вызывать update_customer_profile(new_name="Имя") в тестах.
+    Factory: обновить имя профиля по конкретному auth_header.
+    Вызов: resp = update_customer_profile_for(auth_header, new_name)
     """
-    def _update(new_name:str="New name 1"):
-        update_resp = requests.put(
+    def _update(auth_header: str, new_name:str):
+        response = requests.put(
             url=STAGE + CUSTOMER_URI,
-            headers={"Authorization": user_auth["auth_header"]},
+            headers={
+                "Authorization": auth_header,
+                "Content-Type": "application/json"
+            },
             json={"name": new_name}
         )
-        # print(f'update_resp =', update_resp.json())  # Debug
+        # print(f'response =', response.json())  # Debug
+        assert_status(resp=response, expected=200)
 
-        assert_status(resp=update_resp, expected=200)
-
-        return update_resp
-
+        return response
     return _update
 
 

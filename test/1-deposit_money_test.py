@@ -29,19 +29,20 @@ class TestUpDeposit:
         acc_id = acc["account_id"]
         auth = acc["auth_header"]
 
-        # --- баланс до депозита ---
+        # Баланс до депозита
         balance_before = get_balance(acc_id, auth)
         print(f"\n    💰 Баланс ДО: {balance_before}")
 
         amount = generate_amount()
+        # Депозит
         deposit_resp = deposit_money(account_id=acc_id, auth_header=auth, amount=amount)
 
         assert_status(resp=deposit_resp["response"], expected=200)
-        # --- баланс после депозита ---
+        # Баланс после депозита
         balance_after = get_balance(acc_id, auth)
         print(f"    💰 Баланс ПОСЛЕ: {balance_after}")
         assert deposit_resp["response"].json()["balance"] == amount
-        # --- проверка баланса---
+        # Проверка баланса
         assert balance_after == balance_before + amount, (
             f"❌ Баланс не совпадает: ожидали {balance_before + amount}, "
             f"а получили {balance_after}"

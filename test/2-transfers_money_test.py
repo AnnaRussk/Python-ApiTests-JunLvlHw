@@ -28,7 +28,7 @@ class TestUpTransfer:
         assert_status(resp=deposit_response, expected=200)
         assert deposit_response["response"].json()["balance"] == 333
 
-        # balance before transfer
+        # Balance before transfer
         balance_before_from = get_balance(sender_data["id"], sender_data["auth_header"])
         balance_before_to = get_balance(receiver_account["account_id"], receiver_account["auth_header"])
         print(f'\n    💰 Начальный баланс: отправителя = {balance_before_from} | получателя = {balance_before_to}')
@@ -45,7 +45,7 @@ class TestUpTransfer:
         assert transfer_response.json()['message'] == 'Transfer successful', 'Transfer is NOT successful'
         assert transfer_response.json()['amount'] == transfer_amount
 
-        # balance after transfer
+        # Balance after transfer
         balance_after_from = get_balance(sender_data["id"], sender_data["auth_header"], retries=3, delay=0.5)
         balance_after_to = get_balance(receiver_account["account_id"], receiver_account["auth_header"], retries=3, delay=0.5)
 
