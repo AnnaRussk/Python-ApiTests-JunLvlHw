@@ -104,6 +104,41 @@ def create_account(user_auth):
 
 
 @pytest.fixture
+def get_balance():
+    """
+    Fixture/Factory:  Get balance by account id
+    Expected result: Current balance by account
+    Returns: float
+    """
+    def _balance(account_id: int, auth_header: str, retries: int = 1, delay: float = 0.5) -> float:
+        """Вернуть баланс счёта из /customer/accounts.
+        retries/delay опциональны: позволяют подождать консистентности.
+        """
+        import time
+        for i in range(max(1, retries)):
+            r = requests.get(
+                url=STAGE + CUSTOMER_ACCOUNTS_URI,
+                headers={"Authorization": auth_header},
+            )
+            assert_status(r, 200)
+            items = r.json()  # список счетов
+
+            for acc in items:
+                if acc.get("id") == account_id:
+                    bal = acc.get("balance")
+                    assert bal is not None, "В ответе нет поля balance"
+                    return float(bal)
+
+            # если не нашли и есть ещё попытки — подождём и попробуем снова
+            if i + 1 < retries:
+                time.sleep(delay)
+
+        raise AssertionError(f"Счёт {account_id} не найден в /customer/accounts")
+    return _balance
+
+
+
+@pytest.fixture
 def deposit_money(create_account):
     """
     Фабрика: Депозит на указанный счёт или на счёт из фикстуры 'create_account'.

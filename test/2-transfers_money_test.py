@@ -9,6 +9,7 @@ class TestUpTransfer:
         transfer_money,
         deposit_money,
         create_account,
+        get_balance,
         transfer_amount: float = 33
     ):
         """
@@ -27,6 +28,11 @@ class TestUpTransfer:
         assert_status(resp=deposit_response, expected=200)
         assert deposit_response["response"].json()["balance"] == 333
 
+        # balance before transfer
+        balance_before_from = get_balance(sender_data["id"], sender_data["auth_header"])
+        balance_before_to = get_balance(receiver_account["account_id"], receiver_account["auth_header"])
+        print(f'\n    💰 Начальный баланс: отправителя = {balance_before_from} | получателя = {balance_before_to}')
+
         """ Шаг 4: перевод средств от отправителя к получателю """
         transfer_response = transfer_money(
             sender_account_id=sender_data["id"],
@@ -39,6 +45,16 @@ class TestUpTransfer:
         assert transfer_response.json()['message'] == 'Transfer successful', 'Transfer is NOT successful'
         assert transfer_response.json()['amount'] == transfer_amount
 
-        print(f"\n ✅ Перевод в размере {transfer_response.json()['amount']}"
+        # balance after transfer
+        balance_after_from = get_balance(sender_data["id"], sender_data["auth_header"], retries=3, delay=0.5)
+        balance_after_to = get_balance(receiver_account["account_id"], receiver_account["auth_header"], retries=3, delay=0.5)
+
+        # Check that balance before and after has changed by the amount of transfer from sender to receiver
+        assert balance_after_from == balance_before_from - transfer_amount
+        assert balance_after_to == balance_before_to + transfer_amount
+
+        print(f'    💰 Текущий Баланс: отправителя (id {transfer_response.json()['senderAccountId']}) = {balance_after_from} | '
+              f'получателя (id {transfer_response.json()['receiverAccountId']}) = {balance_after_to}')
+        print(f"✅ Перевод в размере {transfer_response.json()['amount']}"
               f" успешно выполнен между аккаунтами: {transfer_response.json()['senderAccountId']}"
               f" -> {transfer_response.json()['receiverAccountId']}")
