@@ -1,4 +1,3 @@
-from conftest import create_account_data
 from utils.utils import assert_status
 
 
@@ -9,6 +8,7 @@ class TestUpTransfer:
         user_auth,
         transfer_money,
         deposit_money,
+        create_account,
         transfer_amount: float = 33
     ):
         """
@@ -16,7 +16,7 @@ class TestUpTransfer:
         """
 
         """ Шаг 1: создаём аккауатн-получателя """
-        receiver_account = create_account_data(user_auth)
+        receiver_account = create_account()
         # print("\nReceiver:", receiver_account["account_id"])      # Debag
 
         """ Шаг 2-3:  создаём аккауатн-отправителя и пополняем счёт отправителя """

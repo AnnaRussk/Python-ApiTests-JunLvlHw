@@ -71,47 +71,35 @@ def user_auth(create_new_user) -> dict:
     }
 
 
-# Helper for account creation (fixture: create_account)
-def create_account_data(user_auth):
-    """
-    Вспомогательная функция: создаёт аккаунт по переданным данным авторизации пользователя.
-
-    Args:
-        user_auth (dict): содержит 'auth_header' и 'username'
-
-    Returns:
-        dict: данные созданного аккаунта (account_id, auth_header, username)
-    """
-    create_account_resp = requests.post(
-        url=STAGE + ACCOUNTS_URI,
-        headers={
-            'Authorization': user_auth["auth_header"]
-        }
-    )
-
-    assert_status(resp=create_account_resp, expected=201)
-    assert create_account_resp.json().get('balance') == 0.0, "💰 Initial balance is not zero!"
-    assert not create_account_resp.json().get('transactions'), "📜 Transactions list is not empty!"
-    account_id = create_account_resp.json().get('id')
-    # Stored account id, login and headline of authorization
-    return {
-        "account_id": account_id,
-        "auth_header": user_auth["auth_header"],
-        "username": user_auth["username"]
-    }
-
-
 
 @pytest.fixture
-# Create a new account and return account_id, auth_header, username
 def create_account(user_auth):
     """
-    Fixture: создаёт аккаунт для нового авторизованного пользователя.
-
-    Returns:
-        dict: данные аккаунта (account_id, auth_header, username)
+    Factory: создаёт аккаунт и возвращает dict.
+    Вызов:
+        acc = create_account()                   # с user_auth
+        acc = create_account(auth_header="...")  # можно подменить токен
     """
-    return create_account_data(user_auth)
+    def _create(auth_header: str | None = None) -> dict:
+        auth = auth_header or user_auth["auth_header"]      # Выбор заголовка — либо из user_auth, либо явный
+
+        resp = requests.post(
+            url=STAGE + ACCOUNTS_URI,
+            headers={"Authorization": auth}
+        )
+        assert_status(resp=resp, expected=201)
+
+        data = resp.json()
+        assert data.get("balance") == 0.0, "💰 Initial balance is not zero!"
+        assert not data.get("transactions"), "📜 Transactions list is not empty!"
+
+        return {
+            "account_id": data.get("id"),
+            "auth_header": auth,
+            "username": user_auth["username"],
+        }
+
+    return _create      # Возвращаем функцию (фабрику)
 
 
 
@@ -134,9 +122,15 @@ def deposit_money(create_account):
     ):
         assert amount > 0, "💥 Сумма депозита должна быть > 0"
 
-        """ Если account_id и auth_header не передали явно — берём из create_account """
-        acc_id = account_id if account_id is not None else create_account["account_id"]
-        auth = auth_header if auth_header is not None else create_account["auth_header"]
+        # Если account_id не передан — создаём аккаунт через фабрику (можно передать кастомный auth_header)
+        if account_id is None:
+            acc = create_account(auth_header)
+            acc_id = acc["account_id"]
+            auth = acc["auth_header"]
+        else:
+            assert auth_header is not None, "🔑 Нужен auth_header для указанного account_id"
+            acc_id = account_id
+            auth = auth_header
 
         response = requests.post(
             url=STAGE + DEPOSIT_URI,
