@@ -6,7 +6,9 @@ from data.factories import generation_name
 class TestChangingUserName:
     def test_changing_user_name(
             self,
-            update_customer_profile,
+            create_account,
+            get_customer_profile,
+            update_customer_profile
     ):
         """
         Test: Change the name of the user
@@ -17,22 +19,38 @@ class TestChangingUserName:
                 - Create a new user.
                 - Get auth header.
                 - Change the name of the user.
+            3. Compare what new name different from the old
 
         Expected result:
             Changing new name is successful.
         """
-        new_name = generation_name()
-        # print(new_name)  # Debag
+        print(f' Test: Changing user name')       #Debag
+        acc = create_account()
+        auth = acc["auth_header"]
 
-        update_profile = update_customer_profile(new_name=new_name)
-        # print(type(update_profile)) # Debag
-        # print(update_profile.json()) # Debag
+        # Имя ДО
+        profile_before = get_customer_profile(auth)
+        old_name = profile_before.get("name")
+
+        # Меняем имя
+        new_name = generation_name()
+        update_profile = update_customer_profile(
+            auth_header=auth,
+            new_name=new_name
+        )
         assert_status(resp=update_profile, expected=200)
 
         data = update_profile.json()
         assert data.get('message') == 'Profile updated successfully'
         assert data.get('customer')['name'] == new_name, 'Имя профиля клиент не корретное/не изменилось'
-        # print(update_profile.json()['customer']['name') # Debag
 
-        print(f'\n ✅ Имя профиля клиента успешно изменено на: {data.get('customer')['name']}')
+        # имя ПОСЛЕ
+        profile_after = get_customer_profile(auth)
+        assert profile_after["name"] == new_name
+        assert old_name != new_name, "Новое имя совпало со старым"
+        assert profile_after.get("name") == new_name, "Имя не обновилось"
+
+        # Debag
+        print(f'    ✅ Имя профиля клиента изменено. Старое "{old_name}" --> Новое "{new_name}"')
+
 

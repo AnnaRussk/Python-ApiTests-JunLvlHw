@@ -1,7 +1,7 @@
 """ Fixtures for tests
 """
 
-import requests, pytest
+import requests, pytest, time
 from data.urls import *
 from utils.utils import assert_status
 from data.factories import user_factory
@@ -27,22 +27,21 @@ def create_new_user():
          dict{str, str} with "username" and "password" keys.
     """
     user_data = user_factory()
-    new_user_resp = requests.post(
+
+    resp = requests.post(
         url=STAGE + ADMIN_URI,
         headers=admin_headers,
-        json=user_data
+        json=user_data.model_dump()
     )
 
-    assert new_user_resp.url, "🌐 URL is empty!"
-    assert_status(resp=new_user_resp, expected=201)
+    assert resp.url, "🌐 URL is empty!"
+    assert_status(resp=resp, expected=201)
 
-    user_name = new_user_resp.json().get("username")
+    user_name = resp.json().get("username")
     assert user_name, "👤 Username is empty!"
+
     # Stored login and password
-    return {
-        "username": user_data["username"],
-        "password": user_data["password"]
-    }
+    return user_data
 
 
 
@@ -58,60 +57,87 @@ def user_auth(create_new_user) -> dict:
     """
     login_user_resp = requests.post(
         url=STAGE + LOGIN_URI,
-        json=create_new_user
+        json=create_new_user.model_dump()
     )
 
     assert_status(resp=login_user_resp, expected=200)
+
     auth_header = login_user_resp.headers.get('Authorization')
     assert auth_header, "🔑 Authorization header is empty!"
+
     # Stored login and headline of authorization
     return {
         "auth_header": auth_header,
-        "username": create_new_user,
-    }
-
-
-# Helper for account creation (fixture: create_account)
-def create_account_data(user_auth):
-    """
-    Вспомогательная функция: создаёт аккаунт по переданным данным авторизации пользователя.
-
-    Args:
-        user_auth (dict): содержит 'auth_header' и 'username'
-
-    Returns:
-        dict: данные созданного аккаунта (account_id, auth_header, username)
-    """
-    create_account_resp = requests.post(
-        url=STAGE + ACCOUNTS_URI,
-        headers={
-            'Authorization': user_auth["auth_header"]
-        }
-    )
-
-    assert_status(resp=create_account_resp, expected=201)
-    assert create_account_resp.json().get('balance') == 0.0, "💰 Initial balance is not zero!"
-    assert not create_account_resp.json().get('transactions'), "📜 Transactions list is not empty!"
-    account_id = create_account_resp.json().get('id')
-    # Stored account id, login and headline of authorization
-    return {
-        "account_id": account_id,
-        "auth_header": user_auth["auth_header"],
-        "username": user_auth["username"]
+        "username": create_new_user.username,
     }
 
 
 
 @pytest.fixture
-# Create a new account and return account_id, auth_header, username
 def create_account(user_auth):
     """
-    Fixture: создаёт аккаунт для нового авторизованного пользователя.
-
-    Returns:
-        dict: данные аккаунта (account_id, auth_header, username)
+    Factory: создаёт аккаунт и возвращает dict.
+    Вызов:
+        acc = create_account()                   # с user_auth
+        acc = create_account(auth_header="...")  # можно подменить токен
     """
-    return create_account_data(user_auth)
+    def _create(auth_header: str | None = None) -> dict:
+        auth = auth_header or user_auth["auth_header"]      # Выбор заголовка — либо из user_auth, либо явный
+
+        resp = requests.post(
+            url=STAGE + ACCOUNTS_URI,
+            headers={"Authorization": auth}
+        )
+        assert_status(resp=resp, expected=201)
+
+        data = resp.json()
+        assert data.get("balance") == 0.0, "💰 Initial balance is not zero!"
+        assert not data.get("transactions"), "📜 Transactions list is not empty!"
+
+        return {
+            "account_id": data.get("id"),
+            "auth_header": auth,
+            "username": user_auth["username"],
+        }
+
+    return _create      # Возвращаем функцию (фабрику)
+
+
+
+@pytest.fixture
+def get_balance():
+    """
+    Fixture/Factory:  Get balance by account id
+    Expected result: Current balance by account
+    Returns: float
+    """
+    def _balance(account_id: int, auth_header: str, retries: int = 1, delay: float = 0.5) -> float:
+        """Вернуть баланс счёта из /customer/accounts.
+        retries/delay опциональны: позволяют подождать консистентности.
+        """
+
+        for i in range(max(1, retries)):
+            request = requests.get(
+                url=STAGE + CUSTOMER_ACCOUNTS_URI,
+                headers={"Authorization": auth_header},
+            )
+            assert_status(request, 200)
+
+            items = request.json()  # список аккаунтов
+
+            for accounts in items:
+                if accounts.get("id") == account_id:
+                    balance = accounts.get("balance")
+                    assert balance is not None, "В ответе нет поля balance"
+                    return round(float(balance), 2)
+
+            # Если не нашли и есть ещё попытки — подождём и попробуем снова
+            if i + 1 < retries:
+                time.sleep(delay)
+
+        raise AssertionError(f"Счёт {account_id} не найден в /customer/accounts")
+
+    return _balance
 
 
 
@@ -132,11 +158,20 @@ def deposit_money(create_account):
             account_id: int | None = None,
             auth_header: str | None = None
     ):
+
+        amount = round(float(amount), 2)
+
         assert amount > 0, "💥 Сумма депозита должна быть > 0"
 
-        """ Если account_id и auth_header не передали явно — берём из create_account """
-        acc_id = account_id if account_id is not None else create_account["account_id"]
-        auth = auth_header if auth_header is not None else create_account["auth_header"]
+        # Если account_id не передан — создаём аккаунт через фабрику (можно передать кастомный auth_header)
+        if account_id is None:
+            account = create_account(auth_header)
+            acc_id = account["account_id"]
+            auth = account["auth_header"]
+        else:
+            assert auth_header is not None, "🔑 Нужен auth_header для указанного account_id"
+            acc_id = account_id
+            auth = auth_header
 
         response = requests.post(
             url=STAGE + DEPOSIT_URI,
@@ -152,6 +187,7 @@ def deposit_money(create_account):
         )
 
         assert_status(resp=response, expected=200)
+
         return {
             "id": acc_id,
             "auth_header": auth,
@@ -185,6 +221,9 @@ def transfer_money():
             amount: float,
             auth_header: str
     ):
+
+        amount = round(float(amount), 2)
+
         response = requests.post(
             url=STAGE + TRANSFER_URI,
             headers={"Authorization": auth_header, "Content-Type": "application/json"},
@@ -194,29 +233,49 @@ def transfer_money():
                 "amount": amount
             }
         )
+
         return response
     return _transfer
+
+
+
+@pytest.fixture
+def get_customer_profile():
+    """
+    Fixture factory: получить профиль юзера по auth_header.
+    """
+    def _profile(auth_header: str) -> dict:
+        resp = requests.get(
+            url=STAGE + CUSTOMER_URI,
+            headers={"Authorization": auth_header}
+        )
+        assert_status(resp, 200)
+
+        return resp.json()
+    return _profile
+
 
 
 @pytest.fixture
 def update_customer_profile(user_auth):
     """
     Fixture:
-    - возвращает функцию для обновления имени профиля.
-    - Позволяет вызывать update_customer_profile(new_name="Имя") в тестах.
+    Factory: обновить имя профиля по конкретному auth_header.
+    Вызов: resp = update_customer_profile_for(auth_header, new_name)
     """
-    def _update(new_name:str="New name 1"):
-        update_resp = requests.put(
+    def _update(auth_header: str, new_name:str):
+        response = requests.put(
             url=STAGE + CUSTOMER_URI,
-            headers={"Authorization": user_auth["auth_header"]},
+            headers={
+                "Authorization": auth_header,
+                "Content-Type": "application/json"
+            },
             json={"name": new_name}
         )
-        # print(f'update_resp =', update_resp.json())  # Debug
+        # print(f'response =', response.json())  # Debug
+        assert_status(resp=response, expected=200)
 
-        assert_status(resp=update_resp, expected=200)
-
-        return update_resp
-
+        return response
     return _update
 
 

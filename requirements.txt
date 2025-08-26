@@ -1,3 +1,6 @@
 pytest
 requests
+http-status
 faker
+pytest-sugar
+pydantic
