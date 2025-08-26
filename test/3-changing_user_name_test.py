@@ -19,18 +19,20 @@ class TestChangingUserName:
                 - Create a new user.
                 - Get auth header.
                 - Change the name of the user.
+            3. Compare what new name different from the old
 
         Expected result:
             Changing new name is successful.
         """
+        print(f' Test: Changing user name')       #Debag
         acc = create_account()
         auth = acc["auth_header"]
 
-        # имя ДО
+        # Имя ДО
         profile_before = get_customer_profile(auth)
         old_name = profile_before.get("name")
 
-        # 2) Меняем имя
+        # Меняем имя
         new_name = generation_name()
         update_profile = update_customer_profile(
             auth_header=auth,
@@ -48,6 +50,7 @@ class TestChangingUserName:
         assert old_name != new_name, "Новое имя совпало со старым"
         assert profile_after.get("name") == new_name, "Имя не обновилось"
 
-        print(f'\n ✅ Имя профиля клиента изменено. Старое имя "{old_name}" --> Новое имя = "{new_name}"')
+        # Debag
+        print(f'    ✅ Имя профиля клиента изменено. Старое "{old_name}" --> Новое "{new_name}"')
 
 

@@ -1,7 +1,7 @@
 """ Fixtures for tests
 """
 
-import requests, pytest
+import requests, pytest, time
 from data.urls import *
 from utils.utils import assert_status
 from data.factories import user_factory
@@ -27,22 +27,21 @@ def create_new_user():
          dict{str, str} with "username" and "password" keys.
     """
     user_data = user_factory()
-    new_user_resp = requests.post(
+
+    resp = requests.post(
         url=STAGE + ADMIN_URI,
         headers=admin_headers,
-        json=user_data
+        json=user_data.model_dump()
     )
 
-    assert new_user_resp.url, "🌐 URL is empty!"
-    assert_status(resp=new_user_resp, expected=201)
+    assert resp.url, "🌐 URL is empty!"
+    assert_status(resp=resp, expected=201)
 
-    user_name = new_user_resp.json().get("username")
+    user_name = resp.json().get("username")
     assert user_name, "👤 Username is empty!"
+
     # Stored login and password
-    return {
-        "username": user_data["username"],
-        "password": user_data["password"]
-    }
+    return user_data
 
 
 
@@ -58,16 +57,18 @@ def user_auth(create_new_user) -> dict:
     """
     login_user_resp = requests.post(
         url=STAGE + LOGIN_URI,
-        json=create_new_user
+        json=create_new_user.model_dump()
     )
 
     assert_status(resp=login_user_resp, expected=200)
+
     auth_header = login_user_resp.headers.get('Authorization')
     assert auth_header, "🔑 Authorization header is empty!"
+
     # Stored login and headline of authorization
     return {
         "auth_header": auth_header,
-        "username": create_new_user,
+        "username": create_new_user.username,
     }
 
 
@@ -114,26 +115,28 @@ def get_balance():
         """Вернуть баланс счёта из /customer/accounts.
         retries/delay опциональны: позволяют подождать консистентности.
         """
-        import time
+
         for i in range(max(1, retries)):
-            r = requests.get(
+            request = requests.get(
                 url=STAGE + CUSTOMER_ACCOUNTS_URI,
                 headers={"Authorization": auth_header},
             )
-            assert_status(r, 200)
-            items = r.json()  # список счетов
+            assert_status(request, 200)
 
-            for acc in items:
-                if acc.get("id") == account_id:
-                    bal = acc.get("balance")
-                    assert bal is not None, "В ответе нет поля balance"
-                    return float(bal)
+            items = request.json()  # список аккаунтов
 
-            # если не нашли и есть ещё попытки — подождём и попробуем снова
+            for accounts in items:
+                if accounts.get("id") == account_id:
+                    balance = accounts.get("balance")
+                    assert balance is not None, "В ответе нет поля balance"
+                    return round(float(balance), 2)
+
+            # Если не нашли и есть ещё попытки — подождём и попробуем снова
             if i + 1 < retries:
                 time.sleep(delay)
 
         raise AssertionError(f"Счёт {account_id} не найден в /customer/accounts")
+
     return _balance
 
 
@@ -155,13 +158,16 @@ def deposit_money(create_account):
             account_id: int | None = None,
             auth_header: str | None = None
     ):
+
+        amount = round(float(amount), 2)
+
         assert amount > 0, "💥 Сумма депозита должна быть > 0"
 
         # Если account_id не передан — создаём аккаунт через фабрику (можно передать кастомный auth_header)
         if account_id is None:
-            acc = create_account(auth_header)
-            acc_id = acc["account_id"]
-            auth = acc["auth_header"]
+            account = create_account(auth_header)
+            acc_id = account["account_id"]
+            auth = account["auth_header"]
         else:
             assert auth_header is not None, "🔑 Нужен auth_header для указанного account_id"
             acc_id = account_id
@@ -181,6 +187,7 @@ def deposit_money(create_account):
         )
 
         assert_status(resp=response, expected=200)
+
         return {
             "id": acc_id,
             "auth_header": auth,
@@ -214,6 +221,9 @@ def transfer_money():
             amount: float,
             auth_header: str
     ):
+
+        amount = round(float(amount), 2)
+
         response = requests.post(
             url=STAGE + TRANSFER_URI,
             headers={"Authorization": auth_header, "Content-Type": "application/json"},
@@ -223,6 +233,7 @@ def transfer_money():
                 "amount": amount
             }
         )
+
         return response
     return _transfer
 
@@ -239,6 +250,7 @@ def get_customer_profile():
             headers={"Authorization": auth_header}
         )
         assert_status(resp, 200)
+
         return resp.json()
     return _profile
 
